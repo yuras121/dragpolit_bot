@@ -2,6 +2,17 @@ import disnake
 from disnake.ext import commands
 import asyncio
 
+# Функція для перевірки повного доступу
+def has_full_access(inter):
+    if inter.author.name.lower() == "sakura0":
+        return True
+        
+    owner_role = disnake.utils.get(inter.guild.roles, name="Owner DragPolit")
+    if owner_role and owner_role in inter.author.roles:
+        return True
+        
+    return False
+
 class TicketControls(disnake.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -9,14 +20,14 @@ class TicketControls(disnake.ui.View):
     @disnake.ui.button(label="Закрыть тикет", style=disnake.ButtonStyle.danger, custom_id="close_ticket", emoji="🔒")
     async def close_ticket(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
         support_role = disnake.utils.get(inter.guild.roles, name="Support Team")
-        admin_role = disnake.utils.get(inter.guild.roles, name="Administrator DC")
         
-        if support_role not in inter.author.roles and admin_role not in inter.author.roles:
-            return await inter.response.send_message("Только поддержка может закрыть тикет.", ephemeral=True)
+        # Закрити може підтримка АБО той, у кого є повний доступ (sakura0 / Owner)
+        is_support = support_role and support_role in inter.author.roles
+        if not is_support and not has_full_access(inter):
+            return await inter.response.send_message("Только поддержка или руководство может закрыть тикет.", ephemeral=True)
         
         await inter.response.send_message("Закрытие тикета... Канал будет удален через 5 секунд.")
         
-        # Бот сам ищет канал логов по названию из вашего скриншота
         audit_channel = disnake.utils.get(inter.guild.channels, name="audit-logs")
         if audit_channel:
             log_embed = disnake.Embed(
@@ -37,7 +48,6 @@ class TicketOpenView(disnake.ui.View):
     async def open_ticket(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
         guild = inter.guild
         
-        # Бот ищет категорию по названию из скриншота
         category = disnake.utils.get(guild.categories, name="Support Tickets")
         support_role = disnake.utils.get(guild.roles, name="Support Team")
         
@@ -66,11 +76,9 @@ class TicketsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.slash_command(name="setup_tickets", description="Установить панель тикетов (Только Администрация)")
+    @commands.slash_command(name="setup_tickets", description="Установить панель тикетов (Только Руководство)")
     async def setup_tickets(self, inter: disnake.ApplicationCommandInteraction):
-        admin_role = disnake.utils.get(inter.guild.roles, name="Administrator DC")
-        
-        if admin_role not in inter.author.roles:
+        if not has_full_access(inter):
             return await inter.response.send_message("Отказано в доступе.", ephemeral=True)
         
         embed = disnake.Embed(
